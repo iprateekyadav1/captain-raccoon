@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Section, Container } from "@/components/ui/layout";
 import { Shield, Eye, BookOpen, Compass } from "lucide-react";
 import React from "react";
+import { withBasePath } from "@/lib/asset-path";
 
 const traits = [
   { icon: Shield,   title: "Night Watch",    desc: "Protector of the piers after dark",          color: "text-red-400" },
@@ -55,8 +56,10 @@ export function CharacterSection() {
             <div className="polaroid absolute top-0 left-0 w-full max-w-sm z-10" style={{ '--rand': '0.7' } as React.CSSProperties}>
               <div className="relative aspect-[3/4] overflow-hidden bg-black mb-4 outline outline-1 outline-black/10">
                 <img
-                  src="/hero-raccoon.png"
+                  src={withBasePath("/hero-raccoon.webp")}
                   alt="Captain Raccoon Surveillance"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover filter contrast-125 saturate-50 sepia-[.2]"
                 />
                 <div className="absolute top-2 right-2 font-mono text-red-500 text-[10px] bg-white/80 px-1 rounded-sm shadow-sm backdrop-blur-sm">

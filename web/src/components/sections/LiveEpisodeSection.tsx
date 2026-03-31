@@ -4,6 +4,7 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { Section, Container } from "@/components/ui/layout";
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
+import { withBasePath } from "@/lib/asset-path";
 
 const scriptBeats = [
   { time: "00:00", text: "The camera pans over the murky harbor water. Fog horns in the distance." },
@@ -15,6 +16,7 @@ const scriptBeats = [
 export function LiveEpisodeSection() {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [activeBeat, setActiveBeat] = React.useState(0);
+  const [videoReady, setVideoReady] = React.useState(false);
 
   React.useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -54,16 +56,19 @@ export function LiveEpisodeSection() {
                 className="absolute inset-0 w-full h-full object-cover"
                 loop
                 playsInline
+                preload="metadata"
+                onLoadedData={() => setVideoReady(true)}
               >
-                <source src="/Captain_Raccoon_on_202603220023.mp4" type="video/mp4" />
-                <source src="/Captain_Raccoon_on_202603220025.mp4" type="video/mp4" />
-                <source src="/Captain_Raccoon_on_202603220010.mp4" type="video/mp4" />
+                <source src={withBasePath("/Captain_Raccoon_on_202603220023.mp4")} type="video/mp4" />
+                <source src={withBasePath("/Captain_Raccoon_on_202603220025.mp4")} type="video/mp4" />
+                <source src={withBasePath("/Captain_Raccoon_on_202603220010.mp4")} type="video/mp4" />
               </video>
-              {/* Placeholder */}
-              <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-cyan-950 flex flex-col items-center justify-center">
+              {!videoReady && (
+                <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-cyan-950 flex flex-col items-center justify-center">
                 <div className="text-5xl mb-3 select-none">🦝</div>
-                <p className="text-zinc-600 font-mono text-[10px] tracking-widest uppercase">place captain-raccoon-story.mp4 in /public</p>
-              </div>
+                  <p className="text-zinc-600 font-mono text-[10px] tracking-widest uppercase">loading story feed...</p>
+                </div>
+              )}
 
               {/* Play overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">

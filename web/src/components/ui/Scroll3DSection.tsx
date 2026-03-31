@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { motion, useScroll, useTransform, useSpring } from "framer-motion";
+import { useIsCoarsePointer } from "@/hooks/useIsCoarsePointer";
 
 // ═══════════════════════════════════════════════════════
 //  SCROLL 3D SECTION — Scroll-driven 3D reveal per section
@@ -29,6 +30,7 @@ export function Scroll3DSection({
   flat = false,
 }: Scroll3DSectionProps) {
   const ref = React.useRef<HTMLDivElement>(null);
+  const isCoarsePointer = useIsCoarsePointer();
 
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -47,7 +49,7 @@ export function Scroll3DSection({
   const opacity = useSpring(rawOpacity, { stiffness: 60, damping: 20 });
   const y       = useSpring(rawY,       { stiffness: 60, damping: 20 });
 
-  if (flat) {
+  if (flat || isCoarsePointer) {
     return (
       <div ref={ref} className={className} style={style}>
         {children}
@@ -73,6 +75,7 @@ export function Scroll3DSection({
           y,
           transformStyle: "preserve-3d",
           transformOrigin: "center top",
+          willChange: "transform, opacity",
         }}
       >
         {children}

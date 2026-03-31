@@ -2,6 +2,7 @@
 
 import React, { useRef } from "react";
 import { motion, useScroll, useTransform, useSpring } from "framer-motion";
+import { withBasePath } from "@/lib/asset-path";
 
 interface FloatingAssetProps {
   src: string;
@@ -39,7 +40,13 @@ export default function FloatingAsset({
       style={{ y, rotate }}
       className={`absolute pointer-events-none z-10 ${className}`}
     >
-      <img src={src} alt={alt} className="w-full h-full object-contain drop-shadow-2xl" />
+      <img
+        src={withBasePath(src)}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="w-full h-full object-contain drop-shadow-2xl"
+      />
     </motion.div>
   );
 }

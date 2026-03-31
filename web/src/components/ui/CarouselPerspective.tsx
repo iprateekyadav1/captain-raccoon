@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { motion, useScroll, useTransform, useSpring } from "framer-motion";
+import { useIsCoarsePointer } from "@/hooks/useIsCoarsePointer";
 
 // ═══════════════════════════════════════════════════════════
 //  CAROUSEL PERSPECTIVE — Scroll-driven global camera effect
@@ -17,6 +18,7 @@ interface CarouselPerspectiveProps {
 }
 
 export function CarouselPerspective({ children }: CarouselPerspectiveProps) {
+  const isCoarsePointer = useIsCoarsePointer();
   const { scrollYProgress } = useScroll();
 
   // Very subtle global rotateX — simulates a tilting overhead camera
@@ -26,6 +28,10 @@ export function CarouselPerspective({ children }: CarouselPerspectiveProps) {
   // Mild scale: barely perceptible zoom at the mid-point of the page
   const rawScale = useTransform(scrollYProgress, [0, 0.5, 1], [1, 1.012, 1]);
   const scale    = useSpring(rawScale, { stiffness: 40, damping: 25 });
+
+  if (isCoarsePointer) {
+    return <div style={{ overflowX: "hidden" }}>{children}</div>;
+  }
 
   return (
     // Outer div: sets CSS perspective (the "camera distance")
@@ -43,6 +49,7 @@ export function CarouselPerspective({ children }: CarouselPerspectiveProps) {
           scale,
           transformStyle: "preserve-3d",
           transformOrigin: "center top",
+          willChange: "transform",
         }}
       >
         {children}

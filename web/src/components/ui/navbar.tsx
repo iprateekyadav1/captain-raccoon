@@ -18,22 +18,40 @@ export function Navbar({ className }: { className?: string }) {
   const lastScrollY = React.useRef(0);
 
   React.useEffect(() => {
-    const handler = () => {
+    const sections = navItems
+      .map((item) => document.querySelector(item.href))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+    let rafId = 0;
+
+    const update = () => {
+      rafId = 0;
       const y = window.scrollY;
       setVisible(y < lastScrollY.current || y < 80);
       setScrolled(y > 50);
       lastScrollY.current = y;
 
       for (const item of [...navItems].reverse()) {
-        const el = document.querySelector(item.href);
+        const el = sections.find((section) => `#${section.id}` === item.href);
         if (el && el.getBoundingClientRect().top <= 120) {
           setActive(item.name);
           break;
         }
       }
     };
+
+    const handler = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(update);
+    };
+
+    update();
     window.addEventListener("scroll", handler, { passive: true });
-    return () => window.removeEventListener("scroll", handler);
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("scroll", handler);
+    };
   }, []);
 
   const scrollTo = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {

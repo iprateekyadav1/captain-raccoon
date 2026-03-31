@@ -8,6 +8,7 @@ import { Syne } from "next/font/google";
 import SmoothScroll from "@/components/ui/SmoothScroll";
 import ThreeDCard from "@/components/ui/ThreeDCard";
 import FloatingAsset from "@/components/ui/FloatingAsset";
+import { withBasePath } from "@/lib/asset-path";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -89,12 +90,14 @@ export default function PromoPage() {
                   exit={{ opacity: 0, y: -20, rotateY: -45 }}
                   transition={{ duration: 0.4 }}
                   src={
-                    activeStage === 0 ? "/raccoon-waving.png" :
-                    activeStage === 1 ? "/raccoon-pointing.png" :
-                    activeStage === 2 ? "/raccoon-surprised.png" :
-                    "/raccoon-sitting.png"
+                    activeStage === 0 ? withBasePath("/raccoon-waving.webp") :
+                    activeStage === 1 ? withBasePath("/raccoon-pointing.webp") :
+                    activeStage === 2 ? withBasePath("/raccoon-surprised.webp") :
+                    withBasePath("/raccoon-sitting.webp")
                   }
                   alt="Captain Raccoon"
+                  loading="lazy"
+                  decoding="async"
                   className="absolute bottom-0 object-contain w-full h-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
                 />
               </AnimatePresence>
@@ -149,7 +152,7 @@ export default function PromoPage() {
                  <ThreeDCard key={i} intensity={10}>
                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/20 flex gap-4 items-start h-full">
                      <div className="relative w-16 h-16 bg-white/20 rounded-full flex-shrink-0 flex justify-center items-center text-3xl shadow-inner border border-white/30 overflow-hidden">
-                        <img src="/hero-raccoon.png" alt="Icon" className="absolute -bottom-2 w-12 h-12 object-cover rounded-full" />
+                        <img src={withBasePath("/hero-raccoon.webp")} alt="Icon" loading="lazy" decoding="async" className="absolute -bottom-2 w-12 h-12 object-cover rounded-full" />
                      </div>
                      <div>
                        <h3 className="font-bold text-xl">{f.title}</h3>
@@ -187,7 +190,7 @@ export default function PromoPage() {
                  <ThreeDCard intensity={15}>
                     <div className="bg-white text-teal-900 p-8 rounded-[3rem] rounded-bl-[4rem] shadow-2xl relative translate-y-24 h-full">
                         <div className="absolute -top-12 -right-6 w-24 h-24 overflow-hidden rounded-full border-4 border-[#14b8a6] bg-teal-800 shadow-xl z-30">
-                          <img src="/hero-raccoon.png" alt="Peeking" className="w-full h-full object-cover translate-y-2" />
+                          <img src={withBasePath("/hero-raccoon.webp")} alt="Peeking" loading="lazy" decoding="async" className="w-full h-full object-cover translate-y-2" />
                         </div>
                         
                         <p className="text-2xl font-medium leading-relaxed mt-4">
@@ -223,7 +226,7 @@ export default function PromoPage() {
               <ThreeDCard intensity={5}>
                 <div className="bg-black/10 border border-white/20 p-8 pt-12 rounded-3xl backdrop-blur-md relative overflow-hidden flex flex-col items-center text-center h-full">
                   <div className="absolute -top-6 -left-6 w-24 h-24 rotate-[-15deg] opacity-60 mix-blend-multiply">
-                     <img src="/raccoon-pointing.png" alt="Sad" className="w-full h-full object-contain grayscale" />
+                     <img src={withBasePath("/raccoon-pointing.webp")} alt="Sad" loading="lazy" decoding="async" className="w-full h-full object-contain grayscale" />
                   </div>
                   <h3 className="text-2xl font-bold mt-4">Standard Ration</h3>
                   <p className="text-5xl font-[family-name:--font-syne] font-bold mt-4">$0 <span className="text-xl text-teal-100 font-sans font-normal">/mo</span></p>
@@ -238,7 +241,7 @@ export default function PromoPage() {
                 <div className="bg-white text-teal-900 border-4 border-[#0d9488] p-8 pt-6 rounded-3xl shadow-[0_30px_100px_rgba(0,0,0,0.3)] flex flex-col items-center text-center relative z-10 h-full">
                   <div className="uppercase font-bold tracking-widest text-xs text-white bg-[#0d9488] px-4 py-1 rounded-full mb-6">Most Popular</div>
                   <div className="w-20 h-20 bg-teal-100 rounded-full mb-2 overflow-hidden border-2 border-teal-300">
-                     <img src="/raccoon-waving.png" alt="Happy" className="w-full h-full object-cover translate-y-2 scale-110" />
+                     <img src={withBasePath("/raccoon-waving.webp")} alt="Happy" loading="lazy" decoding="async" className="w-full h-full object-cover translate-y-2 scale-110" />
                   </div>
                   <h3 className="text-2xl font-bold">First Mate</h3>
                   <p className="text-5xl font-[family-name:--font-syne] font-bold mt-2">$29 <span className="text-xl text-teal-600 font-sans font-normal">/mo</span></p>
@@ -256,7 +259,7 @@ export default function PromoPage() {
               <ThreeDCard intensity={5}>
                 <div className="bg-[#0d9488] border border-teal-400 p-8 pt-12 rounded-3xl shadow-lg relative overflow-hidden flex flex-col items-center text-center text-white h-full">
                   <div className="absolute top-0 right-0 w-32 h-32 translate-x-4 -translate-y-4 mix-blend-multiply opacity-50">
-                     <img src="/raccoon-surprised.png" alt="Shocked" className="w-full h-full object-contain" />
+                     <img src={withBasePath("/raccoon-surprised.webp")} alt="Shocked" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                   </div>
                   <h3 className="text-2xl font-bold mt-4 text-white">Fleet Admiral</h3>
                   <p className="text-5xl font-[family-name:--font-syne] font-bold mt-4 text-white">$99 <span className="text-xl text-teal-200 font-sans font-normal">/mo</span></p>

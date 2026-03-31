@@ -57,6 +57,7 @@ export function WarpStarfield({ depth = 0 }: WarpStarfieldProps) {
 
     let W = 0, H = 0;
     let rafId = 0;
+    let scrollRafId = 0;
 
     // ── Resize ─────────────────────────────────────────
     function resize() {
@@ -73,7 +74,8 @@ export function WarpStarfield({ depth = 0 }: WarpStarfieldProps) {
     let stars: Star[] = Array.from({ length: NUM_STARS }, () => makeStar(W, H, true));
 
     // ── Scroll → warp speed + tilt ────────────────────────
-    function onScroll() {
+    function updateFromScroll() {
+      scrollRafId = 0;
       const scrollH  = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       const progress = Math.min(window.scrollY / (window.innerHeight * 0.8), 1);
       const fullProg = window.scrollY / scrollH; // 0→1 over full page
@@ -89,6 +91,11 @@ export function WarpStarfield({ depth = 0 }: WarpStarfieldProps) {
       tiltRef.current.x = (fullProg - 0.5) * 10;
       tiltRef.current.y = (fullProg - 0.5) * 4;
     }
+    function onScroll() {
+      if (scrollRafId) return;
+      scrollRafId = requestAnimationFrame(updateFromScroll);
+    }
+    updateFromScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
 
     // ── Animation loop ────────────────────────────────────
@@ -190,6 +197,7 @@ export function WarpStarfield({ depth = 0 }: WarpStarfieldProps) {
 
     return () => {
       cancelAnimationFrame(rafId);
+      cancelAnimationFrame(scrollRafId);
       resizeObs.disconnect();
       window.removeEventListener("scroll", onScroll);
     };

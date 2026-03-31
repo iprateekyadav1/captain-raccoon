@@ -3,6 +3,7 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { Section, Container } from "@/components/ui/layout";
+import { withBasePath } from "@/lib/asset-path";
 
 const filters = ["all", "character", "locations", "cinematic"];
 
@@ -47,7 +48,7 @@ const items = [
     id: 5,
     cat: "character",
     type: "image",
-    src: "/hero-raccoon.png",
+    src: "/hero-raccoon.webp",
     title: "AI Portrait",
     desc: "Character art",
     style: "col-span-12 md:col-span-5 aspect-[3/4] md:mt-[-100px]",
@@ -90,6 +91,9 @@ function CollageTile({ item, i }: { item: Item; i: number }) {
   React.useEffect(() => {
     if (!videoRef.current) return;
     if (hovered) {
+      if (videoRef.current.preload === "none" && videoRef.current.readyState === 0) {
+        videoRef.current.load();
+      }
       videoRef.current.play().catch(() => {});
     } else {
       videoRef.current.pause();
@@ -117,17 +121,19 @@ function CollageTile({ item, i }: { item: Item; i: number }) {
         {item.type === "video" ? (
           <video
             ref={videoRef}
-            src={item.src}
+            src={withBasePath(item.src)}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none"
             className="absolute inset-0 w-full h-full object-cover filter transition-all duration-700 saturate-50 contrast-125 group-hover:saturate-100 group-hover:contrast-100"
           />
         ) : (
           <img
-            src={item.src}
+            src={withBasePath(item.src)}
             alt={item.title}
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 w-full h-full object-cover filter transition-all duration-700 saturate-50 contrast-125 group-hover:saturate-100 group-hover:contrast-100"
           />
         )}

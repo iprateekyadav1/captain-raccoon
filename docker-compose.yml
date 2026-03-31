@@ -1,0 +1,41 @@
+# =============================================================================
+# Captain Raccoon — Docker Compose (Local Development)
+# =============================================================================
+version: "3.9"
+
+services:
+  # ── Main pipeline ────────────────────────────────────────────────────────────
+  pipeline:
+    build: .
+    env_file: .env
+    volumes:
+      - ./output:/app/output
+      - ./assets:/app/assets
+    depends_on:
+      - mongo
+    command: ["python", "-m", "captain_raccoon.orchestrator.scheduler", "full"]
+
+  # ── MongoDB (local dev — Atlas in production) ──────────────────────────────
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: captain_raccoon
+
+  # ── Datadog Agent (local metrics) ─────────────────────────────────────────
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:latest
+    environment:
+      DD_API_KEY: ${DATADOG_API_KEY}
+      DD_SITE: datadoghq.com
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_LOGS_ENABLED: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+
+volumes:
+  mongo_data:

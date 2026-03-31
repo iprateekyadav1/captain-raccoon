@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas Particle Animation</title>
+  <style>
+    /* Reset margins and borders */
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #ffffff; /* White background */
+    }
+
+    /* Position canvas absolutely behind all page content */
+    #particleCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      display: block;
+    }
+
+    /* Dummy foreground content to demonstrate z-index */
+    .content {
+      position: relative;
+      z-index: 1;
+      padding: 2rem;
+      font-family: sans-serif;
+      color: #333;
+      pointer-events: none; /* Let mouse events pass through to canvas if needed, or handle mouse globally */
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <h1>HTML5 Particle Background</h1>
+    <p>Move your mouse around to attract the particles!</p>
+  </div>
+
+  <canvas id="particleCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- Configuration Parameters ---
+    const NUM_PARTICLES = 300;     // Density of dots (200 - 500)
+    const ATTRACTION = 0.3;        // How strongly particles pull toward cursor (0.2 - 0.5)
+    const DAMPING = 0.92;          // How quickly they slow down (0.88 - 0.95)
+    const SOFTENING = 50;          // Prevents explosive force at zero distance (30 - 80)
+    const IDLE_COOLDOWN = 1000;    // Time in ms before particles go idle
+
+    // Google brand colors
+    const COLORS = [
+      'rgba(66, 133, 244, 0.6)', // Blue (#4285F4)
+      'rgba(234, 67, 53, 0.6)',  // Red (#EA4335)
+      'rgba(251, 188, 5, 0.6)',  // Yellow (#FBBC05)
+      'rgba(52, 168, 83, 0.6)',  // Green (#34A853)
+      'rgba(161, 66, 244, 0.6)'  // Purple (added per instructions)
+    ];
+
+    // --- State Variables ---
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let particles = [];
+    
+    // Mouse tracking
+    let mouse = {
+      x: width / 2,
+      y: height / 2,
+    };
+    let lastMouseMoveTime = Date.now();
+
+    // Resize canvas to match window
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Track mouse movements
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      lastMouseMoveTime = Date.now();
+    });
+
+    // Handle touch screens
+    window.addEventListener('touchmove', (e) => {
+      mouse.x = e.touches[0].clientX;
+      mouse.y = e.touches[0].clientY;
+      lastMouseMoveTime = Date.now();
+    }, { passive: true });
+
+    // --- Particle Class ---
+    class Particle {
+      constructor() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.vx = 0;
+        this.vy = 0;
+        this.size = Math.random() * 3 + 2; // Size between 2px and 5px
+        this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      }
+
+      update(isIdle) {
+        // Apply attraction if mouse has moved recently, otherwise apply an idle drift
+        if (!isIdle) {
+          const dx = mouse.x - this.x;
+          const dy = mouse.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          // Apply a small attraction force toward the cursor
+          const force = ATTRACTION / (dist + SOFTENING); 
+          
+          this.vx += (dx / dist) * force;
+          this.vy += (dy / dist) * force;
+        } else {
+          // Idle drift: Add a tiny random velocity each frame
+          this.vx += (Math.random() - 0.5) * 0.1;
+          this.vy += (Math.random() - 0.5) * 0.1;
+        }
+
+        // Apply damping/friction
+        this.vx *= DAMPING;
+        this.vy *= DAMPING;
+
+        // Update position
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Boundary wrapping (if it goes off screen, wrap to the other side)
+        if (this.x < 0) this.x = width;
+        if (this.x > width) this.x = 0;
+        if (this.y < 0) this.y = height;
+        if (this.y > height) this.y = 0;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    // Initialize particles
+    for (let i = 0; i < NUM_PARTICLES; i++) {
+      particles.push(new Particle());
+    }
+
+    // --- Animation Loop ---
+    function animate() {
+      // Clear canvas each frame
+      ctx.clearRect(0, 0, width, height);
+      
+      const now = Date.now();
+      const isIdle = now - lastMouseMoveTime > IDLE_COOLDOWN;
+
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update(isIdle);
+        particles[i].draw();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    // Start loop
+    animate();
+  </script>
+</body>
+</html>

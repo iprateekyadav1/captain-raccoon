@@ -1,0 +1,212 @@
+# =============================================================================
+# CAPTAIN RACCOON — PIPELINE CONFIGURATION
+# =============================================================================
+
+pipeline:
+  name: "captain_raccoon_pipeline"
+  version: "1.0.0"
+  environment: "${ENVIRONMENT:development}"   # development | staging | production
+
+# ──────────────────────────────────────────────────────────────────────────────
+# AI PROVIDERS  (primary + fallback for every generation stage)
+# ──────────────────────────────────────────────────────────────────────────────
+providers:
+  llm:
+    primary:
+      name: "anthropic"
+      model: "claude-opus-4-5"
+      max_tokens: 4096
+      temperature: 0.85
+    fallback:
+      name: "anthropic"
+      model: "claude-haiku-4-5"
+      max_tokens: 2048
+      temperature: 0.85
+
+  image_generation:
+    primary:
+      name: "replicate"
+      model: "black-forest-labs/flux-dev"
+      width: 1080
+      height: 1920           # 9:16 portrait for Reels/Shorts
+      num_inference_steps: 28
+      guidance_scale: 3.5
+    fallback_1:
+      name: "replicate"
+      model: "black-forest-labs/flux-schnell"
+      width: 1080
+      height: 1920
+      num_inference_steps: 4
+    fallback_2:
+      name: "huggingface"
+      model: "black-forest-labs/FLUX.1-schnell"
+    local_fallback:
+      name: "automatic1111"
+      url: "http://localhost:7860"
+      model: "dreamshaper_8.safetensors"
+
+  video_generation:
+    primary:
+      name: "replicate"
+      model: "wavespeedai/wan-2.1-i2v-480p"    # Image-to-video (best quality)
+      duration_seconds: 5
+      fps: 24
+      motion_strength: 0.7
+    fallback_1:
+      name: "replicate"
+      model: "wavespeedai/wan-2.1-t2v-480p"    # Text-to-video fallback
+      duration_seconds: 5
+      fps: 24
+    fallback_2:
+      name: "replicate"
+      model: "minimax/video-01"
+      duration_seconds: 6
+    local_fallback:
+      name: "comfyui"
+      url: "http://localhost:8188"
+
+  tts:
+    primary:
+      name: "azure"
+      voice: "${AZURE_TTS_VOICE:en-US-GuyNeural}"
+      style: "${AZURE_TTS_STYLE:cheerful}"
+      rate: "+0%"
+      pitch: "+0Hz"
+    fallback_1:
+      name: "google"
+      voice: "en-US-Neural2-D"
+      language: "en-US"
+    fallback_2:
+      name: "elevenlabs"               # If user gets ElevenLabs key later
+      voice_id: ""
+    local_fallback:
+      name: "coqui"
+      model: "tts_models/en/ljspeech/glow-tts"
+
+  music:
+    source: "local"                    # local | audioCraft | replicate
+    local_library_path: "assets/music"
+    default_track: "assets/music/default_warm.mp3"
+    volume_reduction_db: 18            # How much to duck music under voice
+    audioCraft_model: "facebook/musicgen-small"  # If generating music
+    genre_map:
+      motivational: "upbeat lo-fi hip hop, warm, inspirational"
+      sad: "slow piano, gentle, melancholic but hopeful"
+      adventure: "epic orchestral, cinematic, rising strings"
+      funny: "playful, bouncy, cartoonish"
+      calm: "ambient, soft, nature sounds"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# STORAGE
+# ──────────────────────────────────────────────────────────────────────────────
+storage:
+  primary:
+    provider: "azure_blob"
+    container: "captain-raccoon-assets"
+    connection_string_env: "AZURE_STORAGE_CONNECTION_STRING"
+  fallback:
+    provider: "digitalocean_spaces"
+    bucket: "captain-raccoon"
+    region: "nyc3"
+    endpoint: "https://nyc3.digitaloceanspaces.com"
+  local_cache:
+    path: "output/episodes"
+    max_size_gb: 10
+
+# ──────────────────────────────────────────────────────────────────────────────
+# VIDEO ASSEMBLY
+# ──────────────────────────────────────────────────────────────────────────────
+assembly:
+  output_resolution: "1080x1920"       # 9:16 portrait
+  output_fps: 30
+  output_codec: "libx264"
+  output_audio_codec: "aac"
+  output_bitrate: "4M"
+  subtitle:
+    enabled: true
+    font: "assets/fonts/Montserrat-Bold.ttf"
+    font_size: 52
+    color: "white"
+    outline_color: "black"
+    outline_width: 3
+    position: "center_bottom"          # center_bottom | center | top
+  intro_duration_seconds: 1.5          # Short logo/brand intro
+  outro_duration_seconds: 2.0          # Subscribe/follow CTA
+  crossfade_duration: 0.4              # Between scenes
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PUBLISHING
+# ──────────────────────────────────────────────────────────────────────────────
+publishing:
+  youtube:
+    enabled: true
+    category_id: "22"                  # People & Blogs
+    privacy_status: "public"           # public | unlisted | private
+    made_for_kids: false
+    default_tags:
+      - "CaptainRaccoon"
+      - "motivation"
+      - "selfhelp"
+      - "raccoon"
+      - "animation"
+      - "shorts"
+      - "animalstories"
+    shorts_hashtag: "#Shorts"
+    notify_subscribers: true
+    post_time_utc: "14:00"            # Optimal posting time (2 PM UTC)
+
+  instagram:
+    enabled: true
+    post_type: "REELS"
+    default_hashtags:
+      - "#CaptainRaccoon"
+      - "#motivation"
+      - "#selfhelp"
+      - "#raccoon"
+      - "#animatedstories"
+      - "#Reels"
+      - "#raccoonlove"
+      - "#kindness"
+    share_to_feed: true
+    post_time_utc: "15:00"            # 15 mins after YouTube
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SCHEDULING
+# ──────────────────────────────────────────────────────────────────────────────
+scheduling:
+  episodes_per_week: 3
+  generation_days: ["monday", "wednesday", "friday"]
+  generation_time_utc: "06:00"         # Generate at 6 AM UTC
+  publish_days: ["tuesday", "thursday", "saturday"]
+  publish_time_utc: "14:00"
+  max_queue_size: 10                   # Episodes in the buffer
+
+# ──────────────────────────────────────────────────────────────────────────────
+# RETRY & RESILIENCE
+# ──────────────────────────────────────────────────────────────────────────────
+retry:
+  max_attempts: 3
+  wait_fixed_seconds: 5
+  wait_multiplier: 2                   # Exponential backoff multiplier
+  wait_max_seconds: 120
+  retry_on_status_codes: [429, 500, 502, 503, 504]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MONITORING
+# ──────────────────────────────────────────────────────────────────────────────
+monitoring:
+  sentry:
+    enabled: true
+    traces_sample_rate: 1.0
+    profiles_sample_rate: 0.1
+  datadog:
+    enabled: true
+    service_name: "captain-raccoon-pipeline"
+    env: "${ENVIRONMENT:development}"
+    statsd_host: "localhost"
+    statsd_port: 8125
+  newrelic:
+    enabled: true
+    app_name: "Captain Raccoon Pipeline"
+  log_level: "${LOG_LEVEL:INFO}"
+  structured_logging: true

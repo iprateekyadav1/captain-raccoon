@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Antigravity — Particle Canvas</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      overflow: hidden;
+      font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* Canvas spec: position absolute, z-index 1, will-change transform */
+    #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+      will-change: transform;
+      display: block;
+    }
+
+    /* Page content above canvas at z-index 10, pointer-events none */
+    #content {
+      position: relative;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 1.25rem;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    #content h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 900;
+      color: #202124;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    #content h1 em { font-style: normal; color: #4285F4; }
+
+    #content p {
+      font-size: 1.05rem;
+      color: #5f6368;
+      max-width: 40ch;
+      line-height: 1.7;
+    }
+
+    #chips {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid #dadce0;
+      border-radius: 999px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.72rem;
+      color: #5f6368;
+      font-weight: 600;
+    }
+
+    .chip b { color: #4285F4; }
+  </style>
+</head>
+<body>
+
+  <canvas id="canvas"></canvas>
+
+  <div id="content">
+    <h1>Anti<em>gravity</em><br/>Particle Engine</h1>
+    <p>
+      Move your cursor close to the shapes —<br/>
+      they spin away. Watch them float upward.
+    </p>
+  </div>
+
+  <div id="chips">
+    <div class="chip"><b>45</b> particles</div>
+    <div class="chip">circle · square · triangle</div>
+    <div class="chip"><b>↑</b> upward gravity</div>
+    <div class="chip">repulsion <b>150px</b></div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // ══════════════════════════════════════════════
+    //  CONFIG — all tunable constants in one place
+    // ══════════════════════════════════════════════
+    const NUM_PARTICLES  = 45;
+    const GRAVITY        = -0.05;   // negative → upward force
+    const FRICTION       = 0.96;
+    const MOUSE_RADIUS   = 150;     // px — repulsion zone
+    const PUSH_STRENGTH  = 4;
+    const MIN_SIZE       = 5;       // particle visual diameter (CSS px)
+    const MAX_SIZE       = 20;
+    const SHADOW_COLOR   = 'rgba(0,0,0,0.08)';
+    const SHADOW_BLUR    = 15;
+    const SHADOW_OFFSET  = 5;
+
+    // Google Antigravity palette
+    // Note: two near-white colours get a visible grey stroke so they don't disappear
+    const COLORS = [
+      '#EA4335',  // Red
+      '#FBBC05',  // Yellow
+      '#34A853',  // Green
+      '#4285F4',  // Blue
+      '#E8F0FE',  // Light-blue (needs stroke — handled in buildSprite)
+      '#DADCE0',  // Light-grey (needs stroke — handled in buildSprite)
+    ];
+    // These colours are too light on white; we'll add a border to distinguish them
+    const LIGHT_COLORS = new Set(['#E8F0FE', '#DADCE0']);
+    const SHAPES = ['circle', 'square', 'triangle'];
+
+    // ══════════════════════════════════════════════
+    //  CANVAS SETUP   (devicePixelRatio-aware)
+    // ══════════════════════════════════════════════
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const dpr    = window.devicePixelRatio || 1;
+
+    let W = 0, H = 0;
+
+    function resize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      // Scale backing store by dpr so lines are sharp on retina
+      canvas.width  = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      canvas.style.width  = W + 'px';
+      canvas.style.height = H + 'px';
+      // IMPORTANT: setting .width/.height resets the context transform,
+      // so we must re-apply the dpr scale after each resize.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resize, { passive: true });
+    resize();
+
+    // ══════════════════════════════════════════════
+    //  SPRITE CACHE
+    //  Pre-render each (color × shape) to an offscreen
+    //  canvas ONCE. Each sprite canvas contains:
+    //    • The shape filled with its colour
+    //    • A baked drop-shadow
+    //    • Enough transparent padding so the shadow isn't clipped
+    //
+    //  Key design decision: we store the SPRITE SIZE (the region
+    //  that contains the actual drawn shape, not the padding) so
+    //  we can draw with correct scaling later.
+    // ══════════════════════════════════════════════
+    const spriteCache = new Map();  // key: `${color}:${shape}`
+
+    /**
+     * Build one offscreen sprite.
+     *
+     * @param {string} color  - fill colour
+     * @param {string} shape  - 'circle' | 'square' | 'triangle'
+     * @param {number} size   - visual diameter in CSS px
+     * @returns {{ oc: HTMLCanvasElement, spriteSize: number, totalSize: number }}
+     */
+    function buildSprite(color, shape, size) {
+      // Padding = room for shadow blur + offset so shadow is not clipped
+      const pad  = SHADOW_BLUR + SHADOW_OFFSET + 2;
+      const totalSize = size + pad * 2;   // full offscreen canvas in CSS px units
+
+      const oc = document.createElement('canvas');
+      oc.width  = Math.round(totalSize * dpr);
+      oc.height = Math.round(totalSize * dpr);
+
+      const ox = oc.getContext('2d');
+      // Scale so we can work in CSS px on the offscreen canvas too
+      ox.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Baked shadow
+      ox.shadowColor   = SHADOW_COLOR;
+      ox.shadowBlur    = SHADOW_BLUR;
+      ox.shadowOffsetX = SHADOW_OFFSET;
+      ox.shadowOffsetY = SHADOW_OFFSET;
+
+      const cx = totalSize / 2;   // CSS px centre of the offscreen canvas
+      const cy = totalSize / 2;
+      const r  = size / 2;        // half a side / radius
+
+      ox.fillStyle = color;
+
+      // For near-white colours, add a distinguishing stroke so they're visible on white BG
+      if (LIGHT_COLORS.has(color)) {
+        ox.strokeStyle = '#bdc1c6';
+        ox.lineWidth   = 1.5;
+      }
+
+      ox.beginPath();
+
+      if (shape === 'circle') {
+        ox.arc(cx, cy, r, 0, Math.PI * 2);
+
+      } else if (shape === 'square') {
+        // Slightly rounded square
+        const rr = r * 0.2;    // corner radius
+        ox.roundRect(cx - r, cy - r, size, size, rr);
+
+      } else {
+        // Equilateral triangle pointing up
+        const h = r * Math.sqrt(3);  // height of equilateral triangle
+        ox.moveTo(cx,         cy - h * 0.58);
+        ox.lineTo(cx + r,     cy + h * 0.42);
+        ox.lineTo(cx - r,     cy + h * 0.42);
+        ox.closePath();
+      }
+
+      ox.fill();
+      if (LIGHT_COLORS.has(color)) ox.stroke();
+
+      return { oc, totalSize };
+    }
+
+    function buildAllSprites() {
+      spriteCache.clear();
+      for (const color of COLORS) {
+        for (const shape of SHAPES) {
+          const key = `${color}:${shape}`;
+          spriteCache.set(key, buildSprite(color, shape, MAX_SIZE));
+        }
+      }
+    }
+
+    // Rebuild sprites after every resize (dpr may change e.g. moving between monitors)
+    window.addEventListener('resize', buildAllSprites, { passive: true });
+    buildAllSprites();
+
+    // ══════════════════════════════════════════════
+    //  PARTICLE CLASS
+    // ══════════════════════════════════════════════
+    class Particle {
+      constructor() { this.spawn(); }
+
+      /** Place at a random position anywhere in viewport */
+      spawn() {
+        this.x  = Math.random() * W;
+        this.y  = Math.random() * H;
+        this.vx = (Math.random() - 0.5) * 1.0;
+        this.vy = (Math.random() - 0.5) * 1.0;
+
+        // Visual size (CSS px), independent of depth
+        this.size  = MIN_SIZE + Math.random() * (MAX_SIZE - MIN_SIZE);
+        // Depth: 0.5 (far/small) → 1.5 (near/large)
+        this.depth = 0.5 + Math.random();
+
+        this.angle         = Math.random() * Math.PI * 2;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.05;  // rad / frame
+
+        this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        this.shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      }
+
+      /** Respawn at the bottom edge (used when floated off the top) */
+      respawn() {
+        this.x  = Math.random() * W;
+        this.y  = H + this.size * 2;
+        this.vx = (Math.random() - 0.5) * 0.8;
+        this.vy = -Math.random() * 0.5;   // small upward nudge
+        // Keep depth, size, color, shape from previous life for visual continuity
+      }
+
+      update(mx, my) {
+        // ── 1. Anti-gravity (upward force) ──────────────────
+        //    Spec: this.vy += gravity * 0.05 * this.depth
+        this.vy += GRAVITY * 0.05 * this.depth;
+
+        // ── 2. Mouse repulsion ───────────────────────────────
+        const dx   = this.x - mx;
+        const dy   = this.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < MOUSE_RADIUS && dist > 0.5) {
+          // Linear fall-off: 1.0 at centre → 0 at edge
+          const force = (MOUSE_RADIUS - dist) / MOUSE_RADIUS;
+          // Direction AWAY from cursor  (particle − mouse → positive away vector)
+          const angle = Math.atan2(dy, dx);
+          this.vx += Math.cos(angle) * force * PUSH_STRENGTH;
+          this.vy += Math.sin(angle) * force * PUSH_STRENGTH;
+        }
+
+        // ── 3. Friction ──────────────────────────────────────
+        this.vx *= FRICTION;
+        this.vy *= FRICTION;
+
+        // ── 4. Move + rotate ─────────────────────────────────
+        this.x += this.vx;
+        this.y += this.vy;
+        this.angle += this.rotationSpeed;
+
+        // ── 5. Edge handling ─────────────────────────────────
+        const m = this.size * 2;     // off-screen margin
+
+        // Floated off the top → respawn at bottom
+        if (this.y < -m) {
+          this.respawn();
+          return;
+        }
+        // Pushed below screen → bring back into view
+        if (this.y > H + m) this.y = H + m;
+        // Horizontal wrap
+        if (this.x < -m)    this.x = W + m;
+        if (this.x > W + m) this.x = -m;
+      }
+
+      draw() {
+        const key    = `${this.color}:${this.shape}`;
+        const sprite = spriteCache.get(key);
+        if (!sprite) return;
+
+        // Display size = base size scaled by depth (parallax)
+        const displaySize = this.size * this.depth;
+
+        // The sprite canvas contains MAX_SIZE plus padding.
+        // Scale factor maps MAX_SIZE → displaySize, and applies to the full canvas.
+        const scale = displaySize / MAX_SIZE;
+        const drawW = sprite.totalSize * scale;
+        const drawH = sprite.totalSize * scale;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);    // move origin to particle centre
+        ctx.rotate(this.angle);            // spin around that centre
+
+        // Draw centred on the rotated origin
+        ctx.drawImage(
+          sprite.oc,
+          -drawW / 2,   // left edge
+          -drawH / 2,   // top edge
+           drawW,
+           drawH
+        );
+
+        ctx.restore();
+      }
+    }
+
+    // ══════════════════════════════════════════════
+    //  PARTICLE POOL
+    // ══════════════════════════════════════════════
+    const particles = Array.from({ length: NUM_PARTICLES }, () => new Particle());
+
+    // ══════════════════════════════════════════════
+    //  MOUSE  (and touch) TRACKING
+    // ══════════════════════════════════════════════
+    let mx = -9999, my = -9999;
+
+    window.addEventListener('mousemove',  e => { mx = e.clientX;           my = e.clientY;           }, { passive: true });
+    window.addEventListener('mouseleave', ()=> { mx = -9999;                my = -9999;                });
+    window.addEventListener('touchmove',  e => { mx = e.touches[0].clientX; my = e.touches[0].clientY; }, { passive: true });
+    window.addEventListener('touchend',   ()=> { mx = -9999;                my = -9999;                });
+
+    // ══════════════════════════════════════════════
+    //  ANIMATION LOOP
+    // ══════════════════════════════════════════════
+    function loop() {
+      // Clear each frame
+      ctx.clearRect(0, 0, W, H);
+
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update(mx, my);
+        particles[i].draw();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+  })();
+  </script>
+</body>
+</html>

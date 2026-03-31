@@ -1,0 +1,81 @@
+name: 🚀 Scheduled Full Pipeline
+
+on:
+  # Publish schedule — Tue, Thu, Sat at 2 PM UTC
+  schedule:
+    - cron: "0 14 * * 2"   # Tuesday
+    - cron: "0 14 * * 4"   # Thursday
+    - cron: "0 14 * * 6"   # Saturday
+
+  # Manual override
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Number of episodes to generate and publish"
+        required: true
+        default: "1"
+
+env:
+  ENVIRONMENT: production
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  full-pipeline:
+    name: 🦝 Full Generate + Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install system deps
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+
+      - name: Install Python deps
+        run: pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Install Doppler CLI
+        run: curl -sLf --retry 3 --tlsv1.2 "https://cli.doppler.com/install.sh" | sudo sh
+
+      - name: Run full pipeline
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          COUNT="${{ github.event.inputs.count || '1' }}"
+          doppler run -- python -m captain_raccoon.scripts.generate_episode \
+            --count "$COUNT" \
+            --publish "true"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: episodes-${{ github.run_number }}
+          path: output/episodes/
+          retention-days: 14
+
+  # Health check — runs after every pipeline
+  health-check:
+    name: 🏥 Pipeline Health Check
+    runs-on: ubuntu-latest
+    needs: full-pipeline
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - name: Check pipeline health
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          curl -sLf "https://cli.doppler.com/install.sh" | sudo sh
+          doppler run -- python -m captain_raccoon.scripts.health_check

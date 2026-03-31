@@ -1,0 +1,46 @@
+# ── Secrets ────────────────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+credentials.json
+token.json
+
+# ── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# ── Output (don't commit generated videos) ─────────────────────────────────
+output/
+*.mp4
+*.wav
+*.aac
+*.png
+*.jpg
+!assets/music/.gitkeep
+!assets/fonts/.gitkeep
+!assets/overlays/.gitkeep
+
+# ── IDE ─────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+.claude/
+.superpowers/
+superpowers/
+filelist.txt
+
+# ── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/

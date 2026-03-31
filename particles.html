@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Particle Background — Google Brand Colors</title>
+  <style>
+    /* ─── Reset ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;               /* no scrollbars on the demo */
+      background: #ffffff;
+      font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* ─── Canvas: full-viewport, behind everything ───────── */
+    #canvas {
+      position: fixed;
+      inset: 0;                       /* top:0 right:0 bottom:0 left:0 */
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;                    /* sit behind all page content */
+      display: block;
+    }
+
+    /* ─── Demo foreground content ────────────────────────── */
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 1rem;
+      pointer-events: none;           /* let mouse events pass to canvas */
+    }
+
+    .content h1 {
+      font-size: clamp(2rem, 6vw, 4.5rem);
+      font-weight: 900;
+      color: #202124;
+      letter-spacing: -0.03em;
+      text-align: center;
+    }
+
+    .content h1 span { color: #4285F4; }
+
+    .content p {
+      font-size: 1.125rem;
+      color: #5f6368;
+      max-width: 42ch;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* ─── Tuning panel (top-right corner) ───────────────── */
+    #panel {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 10;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.8rem;
+      color: #5f6368;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      min-width: 200px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      pointer-events: all;
+    }
+
+    #panel h2 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #202124;
+      margin-bottom: 0.2rem;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .slider-row label { flex-shrink: 0; }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: #4285F4;
+      cursor: pointer;
+    }
+
+    .slider-row output {
+      font-variant-numeric: tabular-nums;
+      min-width: 3ch;
+      text-align: right;
+      color: #4285F4;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Canvas: sits behind everything ── -->
+  <canvas id="canvas" aria-hidden="true"></canvas>
+
+  <!-- ── Demo page content ── -->
+  <div class="content">
+    <h1>Interactive stories<br><span>at the speed of thought.</span></h1>
+    <p>Move your mouse to attract the particles.<br>They drift on their own when idle.</p>
+  </div>
+
+  <!-- ── Live tuning panel ── -->
+  <div id="panel">
+    <h2>⚙ Particle Controls</h2>
+
+    <div class="slider-row">
+      <label for="s-attraction">Attraction</label>
+      <input id="s-attraction" type="range" min="0.05" max="1" step="0.05" value="0.3">
+      <output id="o-attraction">0.3</output>
+    </div>
+
+    <div class="slider-row">
+      <label for="s-damping">Damping</label>
+      <input id="s-damping" type="range" min="0.80" max="0.99" step="0.01" value="0.92">
+      <output id="o-damping">0.92</output>
+    </div>
+
+    <div class="slider-row">
+      <label for="s-softening">Softening</label>
+      <input id="s-softening" type="range" min="10" max="150" step="5" value="50">
+      <output id="o-softening">50</output>
+    </div>
+
+    <div class="slider-row">
+      <label for="s-count">Particles</label>
+      <input id="s-count" type="range" min="50" max="600" step="10" value="300">
+      <output id="o-count">300</output>
+    </div>
+  </div>
+
+  <script>
+    /* ═══════════════════════════════════════════════════════
+       TUNABLE PARAMETERS — adjusted live via the slider panel
+    ═══════════════════════════════════════════════════════ */
+    const CONFIG = {
+      ATTRACTION:   0.3,   // pull strength toward cursor (0.05 – 1.0)
+      DAMPING:      0.92,  // friction applied each frame (0.80 – 0.99)
+      SOFTENING:    50,    // prevents infinite force at zero distance (10 – 150)
+      NUM_PARTICLES: 300,  // total dot count on screen
+      MIN_SIZE:     1.5,   // minimum dot radius in px
+      MAX_SIZE:     4.0,   // maximum dot radius in px
+      IDLE_MS:      1000,  // ms of no mouse movement before idle-drift kicks in
+      DRIFT:        0.06,  // idle drift random velocity per frame
+    };
+
+    /* ═══════════════════════════════════════════════════════
+       GOOGLE BRAND COLOR PALETTE  (with opacity baked in)
+    ═══════════════════════════════════════════════════════ */
+    const PALETTE = [
+      // Blue #4285F4
+      'rgba(66,133,244,0.70)',
+      'rgba(66,133,244,0.45)',
+      // Red #EA4335
+      'rgba(234,67,53,0.65)',
+      'rgba(234,67,53,0.40)',
+      // Yellow #FBBC05
+      'rgba(251,188,5,0.70)',
+      'rgba(251,188,5,0.45)',
+      // Green #34A853
+      'rgba(52,168,83,0.65)',
+      'rgba(52,168,83,0.40)',
+      // Purple #A142F4
+      'rgba(161,66,244,0.60)',
+      'rgba(161,66,244,0.35)',
+    ];
+
+    /* ═══════════════════════════════════════════════════════
+       CANVAS SETUP
+    ═══════════════════════════════════════════════════════ */
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+
+    let W = 0, H = 0;
+
+    function resizeCanvas() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+    resizeCanvas();
+
+    /* ═══════════════════════════════════════════════════════
+       MOUSE TRACKING
+    ═══════════════════════════════════════════════════════ */
+    const mouse = { x: W / 2, y: H / 2 };
+    let lastMouseTime = Date.now();
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      lastMouseTime = Date.now();
+    }, { passive: true });
+
+    // Touch support
+    window.addEventListener('touchmove', (e) => {
+      mouse.x = e.touches[0].clientX;
+      mouse.y = e.touches[0].clientY;
+      lastMouseTime = Date.now();
+    }, { passive: true });
+
+    /* ═══════════════════════════════════════════════════════
+       PARTICLE CLASS
+    ═══════════════════════════════════════════════════════ */
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        // Random starting position anywhere in the viewport
+        this.x  = Math.random() * W;
+        this.y  = Math.random() * H;
+        // Velocities start near zero for a calm initialisation
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+        // Random radius between MIN_SIZE and MAX_SIZE
+        this.r  = CONFIG.MIN_SIZE + Math.random() * (CONFIG.MAX_SIZE - CONFIG.MIN_SIZE);
+        // Pick a random color from the brand palette
+        this.color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+      }
+
+      update(isIdle) {
+        if (isIdle) {
+          /* ── Idle drift: tiny random nudge each frame ── */
+          this.vx += (Math.random() - 0.5) * CONFIG.DRIFT;
+          this.vy += (Math.random() - 0.5) * CONFIG.DRIFT;
+        } else {
+          /* ── Mouse attraction physics ── */
+          const dx   = mouse.x - this.x;
+          const dy   = mouse.y - this.y;
+          // Euclidean distance; || 1 guards against the exact-zero case
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          // Inverse-distance force (softened so close particles don't explode)
+          const force = CONFIG.ATTRACTION / (dist + CONFIG.SOFTENING);
+
+          // Accumulate velocity toward cursor
+          this.vx += (dx / dist) * force;
+          this.vy += (dy / dist) * force;
+        }
+
+        /* ── Friction / damping ── */
+        this.vx *= CONFIG.DAMPING;
+        this.vy *= CONFIG.DAMPING;
+
+        /* ── Move ── */
+        this.x += this.vx;
+        this.y += this.vy;
+
+        /* ── Edge wrap-around ── */
+        if (this.x < -this.r)  this.x = W + this.r;
+        if (this.x > W + this.r) this.x = -this.r;
+        if (this.y < -this.r)  this.y = H + this.r;
+        if (this.y > H + this.r) this.y = -this.r;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       PARTICLE POOL — rebuild when count changes via slider
+    ═══════════════════════════════════════════════════════ */
+    let particles = [];
+
+    function buildParticles(n) {
+      particles = Array.from({ length: n }, () => new Particle());
+    }
+
+    buildParticles(CONFIG.NUM_PARTICLES);
+
+    /* ═══════════════════════════════════════════════════════
+       ANIMATION LOOP
+    ═══════════════════════════════════════════════════════ */
+    function loop() {
+      /* White background each frame */
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+
+      const isIdle = (Date.now() - lastMouseTime) > CONFIG.IDLE_MS;
+
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update(isIdle);
+        particles[i].draw();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+    /* ═══════════════════════════════════════════════════════
+       LIVE TUNING PANEL — sliders update CONFIG in real time
+    ═══════════════════════════════════════════════════════ */
+    function wire(sliderId, outputId, configKey, transform) {
+      const slider = document.getElementById(sliderId);
+      const output = document.getElementById(outputId);
+
+      slider.addEventListener('input', () => {
+        const raw = parseFloat(slider.value);
+        CONFIG[configKey] = transform ? transform(raw) : raw;
+        output.textContent = slider.value;
+
+        // Special case: rebuilding the particle pool
+        if (configKey === 'NUM_PARTICLES') buildParticles(raw);
+      });
+    }
+
+    wire('s-attraction', 'o-attraction', 'ATTRACTION');
+    wire('s-damping',    'o-damping',    'DAMPING');
+    wire('s-softening',  'o-softening',  'SOFTENING');
+    wire('s-count',      'o-count',      'NUM_PARTICLES');
+  </script>
+</body>
+</html>
